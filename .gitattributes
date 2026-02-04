@@ -3,3 +3,4 @@
 *.bin filter=lfs diff=lfs merge=lfs -text
 *.npy filter=lfs diff=lfs merge=lfs -text
 *.csv filter=lfs diff=lfs merge=lfs -text
+src/models/best_model.pt filter=lfs diff=lfs merge=lfs -text

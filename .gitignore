@@ -24,6 +24,7 @@ training_checkpoint*.pt
 *_very_old.pt
 models/*.pt
 src/models/*.pt
+!src/models/best_model.pt
 
 # Optional: Exclude huge raw datasets if you don't want them in Git
 data/
