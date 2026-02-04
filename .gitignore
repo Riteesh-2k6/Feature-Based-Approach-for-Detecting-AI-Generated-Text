@@ -1,0 +1,37 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Environments
+.env
+.venv
+env/
+venv/
+
+# IDEs
+.vscode/
+.idea/
+
+# Large backup files (Excluded to save space)
+*.zip
+*.tar.gz
+*.rar
+
+# Training Checkpoints & Old Models
+training_checkpoint*.pt
+*_old_buggy.pt
+*_very_old.pt
+models/*.pt
+src/models/*.pt
+
+# Optional: Exclude huge raw datasets if you don't want them in Git
+data/
+src/data/
+
+# External Libraries
+en_core_web_md-3.8.0/
+
+# Logs
+*.log
+*.err

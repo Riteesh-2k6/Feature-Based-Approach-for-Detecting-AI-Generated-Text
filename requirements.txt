@@ -1,0 +1,16 @@
+transformers
+datasets
+accelerate
+sentencepiece
+spacy
+nltk
+textstat
+lexical-diversity
+scikit-learn
+pandas
+numpy
+scipy
+matplotlib
+seaborn
+tqdm
+streamlit

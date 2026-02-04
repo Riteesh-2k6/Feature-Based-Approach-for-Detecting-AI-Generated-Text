@@ -1,0 +1,93 @@
+# Methodological Framework for Hybrid AI Text Detection via Iterative Attentional Feature Fusion
+
+## 1. Abstract
+This document details the architectural specifications and algorithmic logic of the **Hybrid AI Text Detector**. The system employs a dual-stream architecture that harmonizes explicit linguistic feature engineering with implicit semantic representations derived from Transformer-based language models. A novel **Iterative Attentional Feature Fusion (iAFF)** mechanism governs the integration of these heterogeneous data modalities, allowing the model to dynamically weight the importance of syntactic rigidity versus semantic probability distributions when distinguishing between human and machine-generated text.
+
+---
+
+## 2. Feature Extraction Methodology
+
+The system operates on the hypothesis that AI-generated text exhibits detectable statistical anomalies in syntax, lexical diversity, and psycholinguistic patterns compared to human writing. These are captured through two parallel processing pipelines.
+
+### 2.1. Pipeline A: Explicit Linguistic Feature Engineering
+This pipeline extracts a high-dimensional vector $v_{ling} \in \mathbb{R}^{57}$ representing statistical properties of the text. These features are computed using `spacy` for dependency parsing and `nltk` for lexical analysis.
+
+#### 2.1.1. Syntactic Template Analysis (9 Features)
+AI models (LLMs) often default to high-probability grammatical structures, resulting in lower syntactic entropy.
+*   **Part-of-Speech (POS) N-grams:** The system generates sequences of POS tags (e.g., `DET` -> `ADJ` -> `NOUN`).
+*   **Template Repetition Rate:** Measures the frequency of recurring syntactic structures.
+*   **Zipfian Deviation:** Calculates the divergence of the syntactic template distribution from an expected Zipfian distribution.
+*   **Template Entropy:** Quantifies the unpredictdictability of the grammatical structure. Low entropy correlates with AI generation.
+
+#### 2.1.2. N-Gram Diversity and Lexical Metrics (14 Features)
+These features measure vocabulary richness and repetition.
+*   **Type-Token Ratios (TTR):** Calculated for unigrams through 7-grams.
+*   **Hapax Legomena Rate:** The ratio of words appearing exactly once. Human text typically exhibits a higher rate of unique words (hapax legomena) due to context-specific vocabulary.
+*   **MTLD (Measure of Textual Lexical Diversity):** A sophisticated TTR measure robust to text length variations.
+
+#### 2.1.3. Psycholinguistic and Complexity Features (34 Features)
+*   **Readability Indices:** Flesch Reading Ease and Gunning Fog index to measure text complexity.
+*   **Syntactic Complexity:** Ratios of complex sentences (containing subordinate clauses) and average sentence length.
+*   **Voice and Tone:**
+    *   *Passive Voice Ratio:* Frequency of auxiliary passives.
+    *   *Self-Reference:* Frequency of first-person pronouns ("I", "we"), which RLHF-tuned models often suppress to remain "neutral."
+*   **Discourse Markers:** Frequency of transitional phrases ("moreover", "consequently"), often over-represented in AI outputs due to fine-tuning for coherence.
+
+### 2.2. Pipeline B: Semantic Representation (DistilBERT)
+To capture deep semantic context that statistical features miss, the system utilizes a **Contrastive DistilBERT** model.
+*   **Architecture:** DistilBERT (6-layer, 768-hidden, 12-head).
+*   **Input:** Tokenized text ($T$) converted to input IDs and attention masks.
+*   **Output:** The embedding vector $v_{emb} \in \mathbb{R}^{768}$ corresponding to the `[CLS]` token, representing the aggregate semantic meaning of the sequence.
+
+---
+
+## 3. The Fusion Architecture: Iterative Attentional Feature Fusion (iAFF)
+
+The core innovation of this system is the method by which the heterogeneous vectors $v_{ling}$ and $v_{emb}$ are combined. Simple concatenation is insufficient as it ignores the scalar disparity and varying relevance of the two modalities.
+
+### 3.1. Projection and Normalization
+Both input vectors are projected into a unified latent space of dimension $D_{fused} = 256$:
+$$ X_{ling} = \text{Linear}_{57 \to 256}(v_{ling}) $$
+$$ X_{emb} = \text{Linear}_{768 \to 256}(v_{emb}) $$
+
+### 3.2. Multi-Scale Channel Attention (MSCA)
+The system employs a custom attention mechanism that captures both global and local feature contexts to determine weighting.
+
+For an input feature map $X$:
+1.  **Global Context:** Computed via Global Average Pooling followed by a shared Multi-Layer Perceptron (MLP) bottleneck.
+    $$ g(X) = \text{MLP}(\text{AvgPool}(X)) $$
+2.  **Local Context:** Computed via a 1D Convolution with kernel size $k=3$, preserving local feature correlations.
+    $$ l(X) = \text{Conv1D}_{k=3}(X) $$
+3.  **Attention Weights:** The two contexts are summed and passed through a Sigmoid activation.
+    $$ \alpha = \sigma(g(X) + l(X)) $$
+
+### 3.3. Fusion Logic
+The fusion module performs a weighted sum of the linguistic and semantic features based on the computed attention map $\alpha$:
+$$ Z = \alpha \cdot X_{ling} + (1 - \alpha) \cdot X_{emb} $$
+Here, $\alpha$ acts as a soft gate: if the model detects high confidence in the linguistic anomalies, it suppresses the semantic embedding, and vice versa.
+
+### 3.4. Iterative Refinement
+The system applies the fusion process iteratively. The output of the first fusion stage $Z_0$ becomes the input for subsequent fusion layers. This allows the network to progressively refine the feature integration, capturing complex non-linear dependencies between syntax (linguistic) and semantics (embeddings).
+$$ Z_{final} = \text{AFF}(Z_{n-1}, Z_{n-1}) $$
+
+---
+
+## 4. Classification and Inference
+
+### 4.1. Classification Head
+The final fused vector $Z_{final}$ is passed through a regularized Feed-Forward Network (FFN):
+1.  Linear ($256 \to 128$) $\to$ ReLU $\to$ Dropout ($p=0.3$)
+2.  Linear ($128 \to 64$) $\to$ ReLU $\to$ Dropout ($p=0.2$)
+3.  Linear ($64 \to 2$) (Logits)
+
+### 4.2. Decision Boundary
+The raw logits are converted to probabilities via the Softmax function:
+$$ P(y=AI | x) = \frac{e^{z_{AI}}}{e^{z_{AI}} + e^{z_{Human}}} $$
+
+*   **Prediction:** $\text{argmax}(P)$
+*   **Confidence:** $\max(P)$
+
+---
+
+## 5. Summary of Novelty
+This system improves upon standard classifiers by acknowledging that "AI-ness" is not solely a semantic property nor solely a syntactic one. By utilizing **Iterative AFF**, the model mimics a human evaluator who might first notice perfect grammar (linguistic feature), then cross-reference it with the generic nature of the content (semantic feature), and iteratively weigh these factors to reach a conclusion.
